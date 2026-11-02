@@ -4,11 +4,11 @@
 
 ### 1.1 Что такое `ONESIGNAL_APP_KEY`
 
-`ONESIGNAL_APP_KEY` из [`env/.env.production`](../env/.env.production:5) (и из `.env.development` / `.env.stage`) — это **OneSignal App ID**. Это не секрет, а публичный идентификатор «приложения» в кабинете OneSignal. На каждое окружение заведено своё OneSignal-приложение, поэтому ключей три.
+`ONESIGNAL_APP_KEY` из [`env/.env.production`](../env/.env.production#L5) (и из `.env.development` / `.env.stage`) — это **OneSignal App ID**. Это не секрет, а публичный идентификатор «приложения» в кабинете OneSignal. На каждое окружение заведено своё OneSignal-приложение, поэтому ключей три.
 
-Ключ используется в единственном месте — в [`OneSignal.initialize()`](../lib/main.dart:221). После этого SDK OneSignal делает всё сам:
+Ключ используется в единственном месте — в [`OneSignal.initialize()`](../lib/main.dart#L221). После этого SDK OneSignal делает всё сам:
 
-1. Получает у ОС нативный push-токен: на Android это FCM-токен (OneSignal работает поверх Firebase, отсюда meta `com.google.firebase.messaging.default_notification_icon` в [`AndroidManifest.xml`](../android/app/src/main/AndroidManifest.xml:19)), на iOS — APNs-токен.
+1. Получает у ОС нативный push-токен: на Android это FCM-токен (OneSignal работает поверх Firebase, отсюда meta `com.google.firebase.messaging.default_notification_icon` в [`AndroidManifest.xml`](../android/app/src/main/AndroidManifest.xml#L19)), на iOS — APNs-токен.
 2. Регистрирует устройство на своём сервере и создаёт **Subscription** с id `OneSignal.User.pushSubscription.id` (раньше назывался `player_id`).
 3. Хранит пару «Subscription id ↔ FCM/APNs-токен» у себя. Наш бэкенд нативные токены не видит, он знает только Subscription id.
 
@@ -19,6 +19,7 @@ sequenceDiagram
     participant OSS as OneSignal cloud
     participant API as APP_API_PATH
     participant FCM as FCM / APNs
+
     App->>OS: initialize ONESIGNAL_APP_KEY
     OS->>FCM: get native token
     OS->>OSS: create subscription
@@ -38,31 +39,32 @@ sequenceDiagram
 
 | Момент | Где | Что происходит |
 |---|---|---|
-| Старт приложения | [`initPlatformState()`](../lib/main.dart:215) | init, слушатели, `requestPermission(true)` сразу при старте |
-| Сменился Subscription id | [`pushSubscription.addObserver`](../lib/main.dart:246) | id сохраняется в prefs `onesignalId`; если пользователь авторизован и id изменился — [`SaveDevice`](../lib/redux/auth/auth_actions.dart:131) |
-| Login / регистрация / восстановление пароля | [`AuthMiddleware`](../lib/redux/auth/auth_middleware.dart:31) | [`getOnesignalId()`](../lib/utils/common.dart:678) → `SaveDevice` |
-| `SaveDevice` | [`auth_middleware.dart`](../lib/redux/auth/auth_middleware.dart:81) | `POST /v3/client/devices {player}`, затем `POST /v3/client/devices/update-activity {onesignal_id, app}` |
-| Смена lifecycle (resumed/paused…) | [`home_page.dart`](../lib/screens/home/home_page.dart:101) | `UpdateDeviceActivity {onesignal_id, app, status}` |
-| Logout / удаление аккаунта | [`drawer_layout.dart`](../lib/ui/drawer_layout.dart:28), [`home_page.dart`](../lib/screens/home/home_page.dart:133), [`private_info_screen.dart`](../lib/screens/aboutme/private_info/private_info_screen.dart:284) | `DELETE /v3/client/devices/{onesignalId}` |
+| Старт приложения | [`initPlatformState()`](../lib/main.dart#L215) | init, слушатели, `requestPermission(true)` сразу при старте |
+| Сменился Subscription id | [`pushSubscription.addObserver`](../lib/main.dart#L246) | id сохраняется в prefs `onesignalId`; если пользователь авторизован и id изменился — [`SaveDevice`](../lib/redux/auth/auth_actions.dart#L131) |
+| Login / регистрация / восстановление пароля | [`AuthMiddleware`](../lib/redux/auth/auth_middleware.dart#L31) | [`getOnesignalId()`](../lib/utils/common.dart#L678) → `SaveDevice` |
+| `SaveDevice` | [`auth_middleware.dart`](../lib/redux/auth/auth_middleware.dart#L81) | `POST /v3/client/devices {player}`, затем `POST /v3/client/devices/update-activity {onesignal_id, app}` |
+| Смена lifecycle (resumed/paused…) | [`home_page.dart`](../lib/screens/home/home_page.dart#L101) | `UpdateDeviceActivity {onesignal_id, app, status}` |
+| Logout / удаление аккаунта | [`drawer_layout.dart`](../lib/ui/drawer_layout.dart#L28), [`home_page.dart`](../lib/screens/home/home_page.dart#L133), [`private_info_screen.dart`](../lib/screens/aboutme/private_info/private_info_screen.dart#L284) | `DELETE /v3/client/devices/{onesignalId}` |
 
 ### 1.3 Получение и отображение
 
 - **Фон и закрытое приложение.** Уведомление рисует сам OneSignal SDK (системная нотификация). На iOS есть [`OneSignalNotificationServiceExtension`](../ios/OneSignalNotificationServiceExtension/NotificationService.swift) — он нужен для картинок, бейджа и подтверждения доставки.
-- **Foreground.** [`addForegroundWillDisplayListener`](../lib/main.dart:229) вызывает `preventDefault()`, затем `GetCountInformation` (обновляет счётчики), затем `display()`.
-- **Тап.** [`addClickListener`](../lib/main.dart:239) вызывает [`pushRouteOnPush(additionalData)`](../lib/main.dart:285). Роутинг строится по `additionalData`:
-  - `route.name == 'notifications'` + `route.params.id` → [`NotificationsScreen`](../lib/screens/notifications/notifications_screen.dart:35), который по id загружает уведомление из `APP_API_PATH`;
+- **Foreground.** [`addForegroundWillDisplayListener`](../lib/main.dart#L229) вызывает `preventDefault()`, затем `GetCountInformation` (обновляет счётчики), затем `display()`.
+- **Тап.** [`addClickListener`](../lib/main.dart#L239) вызывает [`pushRouteOnPush(additionalData)`](../lib/main.dart#L285). Роутинг строится по `additionalData`:
+  - `route.name == 'notifications'` + `route.params.id` → [`NotificationsScreen`](../lib/screens/notifications/notifications_screen.dart#L35), который по id загружает уведомление из `APP_API_PATH`;
   - `url: /chat/{roomId}` → `ChatRoomScreen`;
   - `url: /orders/order-{id}` → `OrderScreen`, `url: /orders/reserve-{id}` → `ReserveScreen`.
 - **Cold start** (запуск по тапу) OneSignal обрабатывает сам: click listener срабатывает после `initialize`.
-- **Бейдж** не связан с OneSignal. Он считается из API (`/v4/client/information`) и выставляется через [`FlutterAppBadger`](../lib/screens/home/home_page.dart:251).
+- **Бейдж** не связан с OneSignal. Он считается из API (`/v4/client/information`) и выставляется через [`FlutterAppBadger`](../lib/screens/home/home_page.dart#L251).
 
 ### 1.4 Оценка текущей реализации
 
 Плюсы: работает, cold start и foreground поддержаны, роутинг по payload понятный.
 
 Проблемы:
-1. Логика сохранения id размазана по 6+ местам. `prefs['onesignalId']` читается и пишется в разных файлах, код observer'а и код после `requestPermission` в [`main.dart`](../lib/main.dart:246) дублируются.
-2. Нет отдельного push-сервиса: всё в `_MyAppState`, а `OneSignal.*` импортируется в [`common.dart`](../lib/utils/common.dart:14) и [`home_page.dart`](../lib/screens/home/home_page.dart:9).
+
+1. Логика сохранения id размазана по 6+ местам. `prefs['onesignalId']` читается и пишется в разных файлах, код observer'а и код после `requestPermission` в [`main.dart`](../lib/main.dart#L246) дублируются.
+2. Нет отдельного push-сервиса: всё в `_MyAppState`, а `OneSignal.*` импортируется в [`common.dart`](../lib/utils/common.dart#L14) и [`home_page.dart`](../lib/screens/home/home_page.dart#L9).
 3. Разрешение запрашивается сразу на старте, без мягкого pre-prompt.
 4. Контракт API привязан к OneSignal: поля `player` и `onesignal_id`, путь `devices/{onesignalId}`.
 5. Чтобы узнать текущий route, вызывается `popUntil(... return true)` — это хак.
@@ -90,6 +92,7 @@ flowchart LR
 - Клиент сам показывает уведомление через `flutter_local_notifications`, сам отправляет `ack delivered` при получении и `ack opened` при тапе. Worker переводит их в `USER_DELIVERED` / `CONVERTED`.
 
 ### Что сделано хорошо
+
 - Обработаны все точки входа: `onMessage` (foreground), `onBackgroundMessage` с `@pragma('vm:entry-point')` и `DartPluginRegistrant`, `onMessageOpenedApp`, `getInitialMessage`, `getNotificationAppLaunchDetails` (cold start по локальной нотификации).
 - Отдельный Android-канал с `Importance.max` и пояснением, почему канал нельзя изменить после создания.
 - Отдельная монохромная иконка `ic_stat_notify`.
@@ -98,6 +101,7 @@ flowchart LR
 - В background isolate не вызывается `initialize()` — это паттерн FlutterFire.
 
 ### Риски и недостатки (важно перед переносом)
+
 1. **Data-only на iOS ненадёжен.** `content-available` — это silent push. iOS ограничивает их частоту, не будит force-killed приложение, а в Low Power Mode может их отбрасывать. Показ local notification из background handler на iOS не гарантирован. Для продакшена на iOS нужен alert-payload (`notification` + `mutable-content`) и Notification Service Extension для `ack delivered`. Data-only оставить только для Android.
 2. **Глобальный `sandboxBaseUrl` в background isolate.** В background isolate изменения из UI не видны: там всегда значение по умолчанию. В Ortus то же самое будет с `dotenv` и auth-токеном: в background handler придётся заново загружать `.env` и читать токен из `SharedPreferences`, Redux store там недоступен.
 3. **Ack без авторизации**, и его нельзя повторить: при отсутствии сети ack теряется. Нужна очередь или повтор.
@@ -131,7 +135,9 @@ flowchart LR
 | Контроль и вендор-лок | Низкий / высокий | Высокий / низкий, но больше кода |
 
 ### Бэкенд (APP_API_PATH)
+
 Песочница показывает целевой контракт MQ (`gate=fcm`, `to=FID`, `more`, `callback`, handle-hook). Продовому API нужно:
+
 - принимать FID (`POST /v3/client/devices` с полем `fid` / `provider: fcm`), удалять по FID;
 - отдавать ack-эндпоинт с авторизацией;
 - класть в `more` поля роутинга (`route`, `url`) и `communication_event_id`;
@@ -140,6 +146,7 @@ flowchart LR
 ---
 
 ## 4. Открытые вопросы
+
 1. Готов ли контракт прод-API (поля devices, ack-эндпоинт, формат `more`)?
 2. Firebase: один проект на все окружения или отдельный на каждое (dev/stage/prod)? Нужны ли flavors?
 3. iOS: согласны ли на alert-payload + NSE вместо data-only?
